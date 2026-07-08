@@ -1,4 +1,4 @@
-# Save this file in your repo as: .github/workflows/ci.yml
+
 name: CI
 
 on:
@@ -8,7 +8,8 @@ on:
     branches: [main]
 
 jobs:
-  # Fast checks: every Python file must at least compile
+  # Job 1 — fast sanity check: every Python file must at least compile.
+  # Catches syntax errors in seconds, before the slow job spends minutes.
   syntax:
     runs-on: ubuntu-latest
     steps:
@@ -19,8 +20,9 @@ jobs:
       - name: Compile all Python files
         run: python -m compileall -q . && echo "All files compile"
 
-  # Full check: rebuild the RAG index from scratch and test retrieval.
-  # No API key needed — retrieval is local; only generation needs Groq.
+  # Job 2 — full pipeline check: rebuild the RAG index from scratch and
+  # verify retrieval finds known content. No API key needed — retrieval
+  # is fully local; only answer generation needs Groq.
   rag-pipeline:
     runs-on: ubuntu-latest
     steps:
@@ -40,10 +42,14 @@ jobs:
           cd 03-rag-assistant
           python - <<'EOF'
           from ask import retrieve
-          chunks = retrieve("What accuracy did the iris classifier get?")
+
+          # This query targets content we KNOW is in the current knowledge
+          # base (the holdout method, from ML_UNIT_4 notes.pdf). If the
+          # docs change again, update this query to match what's in them.
+          chunks = retrieve("What is the holdout method for evaluating a classifier?")
           assert chunks, "retrieval returned nothing"
           text = " ".join(c["text"] for c in chunks)
-          assert "iris" in text.lower(), "expected iris chunk in results"
+          assert "holdout" in text.lower(), "expected holdout-method chunk in results"
           print(f"Retrieval OK: {len(chunks)} chunks, sources:",
                 sorted({c['source'] for c in chunks}))
           EOF

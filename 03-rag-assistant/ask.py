@@ -21,7 +21,7 @@ load_dotenv()
 
 DB_DIR = str(Path(__file__).parent / "chroma_db")
 EMBED_MODEL = "all-MiniLM-L6-v2"
-TOP_K = 4  # how many chunks to retrieve
+TOP_K = 6  # how many chunks to retrieve
 
 MODELS = {
     "fast": "llama-3.1-8b-instant",
