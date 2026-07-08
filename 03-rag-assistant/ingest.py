@@ -44,8 +44,8 @@ def read_file(path: Path) -> str:
 
 def main():
     files = sorted(
-        p for ext in ("*.md", "*.txt", "*.pdf") for p in DOCS_DIR.glob(ext)
-    )
+        p for ext in ("*.md", "*.txt", "*.pdf") for p in DOCS_DIR.rglob(ext)
+    )  # rglob: also finds files inside subfolders of docs/
     if not files:
         print(f"No .md/.txt/.pdf files found in {DOCS_DIR}/ — add some and rerun.")
         return
@@ -59,8 +59,9 @@ def main():
             continue
         chunks = chunk_text(text)
         all_chunks.extend(chunks)
-        metadatas.extend({"source": f.name, "chunk": i} for i in range(len(chunks)))
-        print(f"{f.name}: {len(chunks)} chunks")
+        rel = str(f.relative_to(DOCS_DIR))
+        metadatas.extend({"source": rel, "chunk": i} for i in range(len(chunks)))
+        print(f"{rel}: {len(chunks)} chunks")
 
     # Embed (each chunk becomes a 384-dim vector capturing its meaning)
     print(f"\nEmbedding {len(all_chunks)} chunks with {EMBED_MODEL}...")
