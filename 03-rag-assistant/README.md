@@ -6,7 +6,7 @@ I'm building it in three stages:
 
 - **Stage 1 (done): the RAG core** — documents in, grounded answers out
 - **Stage 2 (done): MCP server** — retrieval exposed as tools any AI client can call
-- **Stage 3: UI** — a proper chat interface, making it a personal assistant
+- **Stage 3 (done): UI** — a Streamlit chat interface, making it a personal assistant
 
 ## How RAG works
 
@@ -58,6 +58,35 @@ Or plug it into Claude Desktop — edit `~/Library/Application Support/Claude/cl
 ```
 
 Restart Claude Desktop, then ask Claude "what projects has Rohit built?" — it will call `search_docs` and answer from my files.
+
+## Stage 3: the UI
+
+`app.py` is the whole assistant in one Streamlit page: chat with memory (project 2's trimming strategy), grounded answers with a "Sources used" expander under each reply (stage 1's retrieval), and a sidebar to switch model tiers mid-conversation (project 1's idea). A toggle switches between document-grounded mode and general chat.
+
+```bash
+pip install streamlit
+streamlit run app.py
+```
+
+One Streamlit quirk worth knowing: the script reruns top-to-bottom on *every* interaction, so the embedding model and DB connection are wrapped in `@st.cache_resource` (load once) and the conversation lives in `st.session_state` (survives reruns).
+
+## Bonus: the MCP client agent
+
+`agent_mcp.py` closes the loop. Project 1's agent had its tools hard-coded; this one *discovers* them. It reads `mcp_config.json`, launches every server listed, asks each for its tools, and hands them all to the Groq LLM. Ask a question, and the LLM decides which server's tool to call.
+
+```bash
+python agent_mcp.py --list                            # see discovered tools
+python agent_mcp.py "What projects has Rohit built?"  # watch it call search_docs
+```
+
+The point of the config file: growing the agent means adding an entry, not writing code. Any community MCP server (filesystem, GitHub, Google Calendar, Gmail...) plugs in the same way:
+
+```json
+"servers": {
+  "personal-docs": {"command": "python", "args": ["mcp_server.py"]},
+  "filesystem": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/me/notes"]}
+}
+```
 
 ## What I learned
 

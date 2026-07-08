@@ -11,6 +11,7 @@ Run:
     streamlit run app.py
 """
 
+import asyncio
 import os
 import re
 from pathlib import Path
@@ -44,23 +45,18 @@ MODELS = {
 MAX_TURNS = 10
 
 DEFAULT_SYSTEM_PROMPT = (
-    """You are a helpful, polite, and professional AI assistant.
+    """You are a helpful, polite, and professional AI assistant that answers STRICTLY from the provided context documents.
 
-Your primary responsibility is to answer only questions that are relevant to your assigned domain or the provided context.
-Guidelines:
+Strict rules — no exceptions:
 
-* Always respond in a polite, respectful, and friendly tone.
-* Answer questions accurately and concisely when they are within the provided context.
-* When your answer comes from the context, cite the source file(s).
-* If a question is outside your scope, context, or knowledge base, do not attempt to guess or fabricate an answer.
-* Instead, politely decline by saying that the question is outside your scope. For example:
-    * "I'm sorry, but that question is outside the scope of what I can help with."
-    * "I can only assist with questions related to the provided context."
-    * "I don't have enough context to answer that question. Please ask something related to the available information."
-* Never generate misleading or hallucinated information.
+* Answer ONLY using information present in the provided context. Never use your own general knowledge, even if you are confident.
+* Every answer must cite the source file(s) it came from.
+* If the context does not contain the answer, reply exactly: "I don't have that in the knowledge base. Try adding a relevant document, or rephrase your question."
+* Never guess, never fill gaps, never fabricate. Partial answers are fine if clearly marked as partial.
+* Never attribute work described in reference material to Rohit unless his own notes say so.
 * If the user's request is ambiguous, ask a clarifying question before answering.
-* Stay focused on the current context and avoid discussing unrelated topics.
-* Be consistent, courteous, and professional in every response."""
+* Be concise, consistent,friendly and explain the answer to the user clearly.
+* If the question has multiple parts, answer every part the context covers, and use the refusal line only for the specific parts it doesn't."""
 )
 
 
@@ -116,7 +112,25 @@ tier = st.sidebar.radio("Model tier", list(MODELS), index=0,
                         format_func=lambda t: f"{t} ({MODELS[t]})")
 temperature = st.sidebar.slider("Temperature", 0.0, 1.0, 0.3, 0.05,
                                 help="Low = focused and factual, high = creative")
-use_rag = st.sidebar.toggle("Answer from my documents", value=True)
+agent_mode = st.sidebar.toggle(
+    "Agent mode (MCP tools)", value=False,
+    help="The agent discovers tools from mcp_config.json (docs search, Gmail, "
+         "Maps...) and decides which to call. Slower per question.")
+
+with st.sidebar.expander("Your API keys (optional, session-only)"):
+    st.caption("Keys live only in this browser session's memory — never "
+               "stored, logged, or shared. Closing the tab erases them.")
+    user_maps_key = st.text_input("Google Maps API key", type="password",
+                                  help="Enables the Maps tools in Agent mode")
+    user_groq_key = st.text_input("Your own Groq API key", type="password",
+                                  help="Use your free key from console.groq.com "
+                                       "instead of the site owner's")
+
+# Session-only env for MCP servers; empty strings are dropped
+session_env = {k: v for k, v in {
+    "GOOGLE_MAPS_API_KEY": user_maps_key.strip(),
+    "GROQ_API_KEY": user_groq_key.strip(),
+}.items() if v}
 
 with st.sidebar.expander("System prompt"):
     system_prompt = st.text_area("Instructions for the assistant",
@@ -149,8 +163,8 @@ with st.sidebar.expander("Add data sources"):
 if st.sidebar.button("Clear conversation"):
     st.session_state.history = []
 
-st.sidebar.caption("Turn the toggle off for general chat; on to ground "
-                   "answers in your documents.")
+st.sidebar.caption("Answers come strictly from your documents — the "
+                   "assistant refuses rather than guesses.")
 
 # --- Chat state (Streamlit reruns the whole script on every interaction) ---
 if "history" not in st.session_state:
@@ -171,22 +185,40 @@ if question := st.chat_input("Type your question..."):
     with st.chat_message("user"):
         st.markdown(question)
 
-    if use_rag:
+    if agent_mode:
+        # --- Agent mode: let the LLM discover and call MCP tools ---
+        from agent_mcp import run_agent
+
+        trace = []
+        with st.chat_message("assistant"):
+            with st.spinner("Agent working — connecting to tools..."):
+                past = st.session_state.history[:-1][-(MAX_TURNS * 2):]
+                answer_text = asyncio.run(
+                    run_agent(question, tier, history=past, trace=trace,
+                              extra_env=session_env)
+                )
+            st.markdown(answer_text)
+            if trace:
+                with st.expander("Tool calls"):
+                    for t in trace:
+                        st.markdown(f"`{t['call']}`\n\n> {t['result'][:300]}...")
+        st.session_state.history.append(AIMessage(answer_text))
+    else:
+        # --- Chat mode: documents are always retrieved; the prompt decides
+        #     whether they're relevant enough to use ---
         chunks = retrieve(question)
         context = "\n\n".join(f"[{c['source']}]\n{c['text']}" for c in chunks)
         system = f"{system_prompt}\n\nContext:\n{context}"
-    else:
-        system = system_prompt
 
-    llm = ChatGroq(model=MODELS[tier], temperature=temperature)
-    messages = [SystemMessage(system)] + st.session_state.history[-(MAX_TURNS * 2):]
+        llm = ChatGroq(model=MODELS[tier], temperature=temperature,
+                       api_key=session_env.get("GROQ_API_KEY") or None)
+        messages = [SystemMessage(system)] + st.session_state.history[-(MAX_TURNS * 2):]
 
-    with st.chat_message("assistant"):
-        response = llm.invoke(messages)
-        st.markdown(response.content)
-        if use_rag:
+        with st.chat_message("assistant"):
+            response = llm.invoke(messages)
+            st.markdown(response.content)
             with st.expander("Sources used"):
                 for c in chunks:
                     st.markdown(f"**{c['source']}**\n\n> {c['text'][:300]}...")
 
-    st.session_state.history.append(AIMessage(response.content))
+        st.session_state.history.append(AIMessage(response.content))

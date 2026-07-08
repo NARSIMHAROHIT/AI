@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "personal-docs": {
+      "command": "python",
+      "args": ["mcp_server.py"]
+    },
+    "google-maps": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-google-maps"]
+    },
+    "gmail": {
+      "command": "npx",
+      "args": ["-y", "@gongrzhe/server-gmail-autoauth-mcp"]
+    }
+  }
+}
