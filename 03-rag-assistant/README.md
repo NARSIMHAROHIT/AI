@@ -4,8 +4,8 @@ The chatbot in project 2 only knows what the model learned in training. This pro
 
 I'm building it in three stages:
 
-- **Stage 1 (this code): the RAG core** — documents in, grounded answers out
-- **Stage 2: MCP server** — expose retrieval as tools any AI client can call
+- **Stage 1 (done): the RAG core** — documents in, grounded answers out
+- **Stage 2 (done): MCP server** — retrieval exposed as tools any AI client can call
 - **Stage 3: UI** — a proper chat interface, making it a personal assistant
 
 ## How RAG works
@@ -31,6 +31,33 @@ python ask.py "What is the capital of France?"               # should refuse —
 ```
 
 First run downloads the embedding model (~80MB). The `chroma_db/` folder it creates is gitignored — anyone can rebuild it with `ingest.py`.
+
+## Stage 2: the MCP server
+
+`mcp_server.py` wraps the same retrieval pipeline in the Model Context Protocol — a standard that lets any AI application discover and call my tools. Three tools are exposed: `search_docs` (raw chunk retrieval), `ask_docs` (full RAG answer via Groq), and `list_sources`.
+
+The interesting shift: in stage 1, *my code* decided when to retrieve. With MCP, the *client's LLM* reads the tool descriptions and decides for itself when to search my documents — the same tool-calling pattern from project 1, but across a process boundary via a standard protocol.
+
+Test it with the MCP Inspector (a debugging UI):
+
+```bash
+npx @modelcontextprotocol/inspector python mcp_server.py
+```
+
+Or plug it into Claude Desktop — edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "personal-docs": {
+      "command": "/ABSOLUTE/PATH/TO/.venv/bin/python",
+      "args": ["/ABSOLUTE/PATH/TO/03-rag-assistant/mcp_server.py"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop, then ask Claude "what projects has Rohit built?" — it will call `search_docs` and answer from my files.
 
 ## What I learned
 
