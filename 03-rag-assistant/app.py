@@ -156,7 +156,8 @@ st.sidebar.caption("Turn the toggle off for general chat; on to ground "
 if "history" not in st.session_state:
     st.session_state.history = []
 
-st.title("I am your Machine learning assistant Will solve your ML problems")
+st.title("Machine learning assistant")
+st.caption("Ask questions about your documents, or just chat.")
 
 # Replay past messages so the conversation stays on screen
 for msg in st.session_state.history:
