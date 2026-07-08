@@ -47,9 +47,6 @@ DEFAULT_SYSTEM_PROMPT = (
     """You are a helpful, polite, and professional AI assistant.
 
 Your primary responsibility is to answer only questions that are relevant to your assigned domain or the provided context.
-
-The context documents are Rohit's personal notes, written in first person — "I" and "my" in the documents refer to Rohit.
-
 Guidelines:
 
 * Always respond in a polite, respectful, and friendly tone.
