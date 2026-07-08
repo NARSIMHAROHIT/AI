@@ -12,8 +12,9 @@ from pathlib import Path
 import chromadb
 from sentence_transformers import SentenceTransformer
 
-DOCS_DIR = Path("docs")
-DB_DIR = "chroma_db"
+HERE = Path(__file__).parent          # absolute paths: works no matter the cwd
+DOCS_DIR = HERE / "docs"
+DB_DIR = str(HERE / "chroma_db")
 EMBED_MODEL = "all-MiniLM-L6-v2"  # Hugging Face model, ~80MB, downloads on first run
 CHUNK_SIZE = 800    # characters per chunk
 OVERLAP = 150       # chunks share edges so ideas aren't cut mid-sentence

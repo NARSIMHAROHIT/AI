@@ -1,0 +1,49 @@
+# Save this file in your repo as: .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Fast checks: every Python file must at least compile
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Compile all Python files
+        run: python -m compileall -q . && echo "All files compile"
+
+  # Full check: rebuild the RAG index from scratch and test retrieval.
+  # No API key needed — retrieval is local; only generation needs Groq.
+  rag-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install CPU-only torch first (avoids the 2GB CUDA build)
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Ingest documents
+        run: cd 03-rag-assistant && python ingest.py
+      - name: Test retrieval finds the right chunk
+        run: |
+          cd 03-rag-assistant
+          python - <<'EOF'
+          from ask import retrieve
+          chunks = retrieve("What accuracy did the iris classifier get?")
+          assert chunks, "retrieval returned nothing"
+          text = " ".join(c["text"] for c in chunks)
+          assert "iris" in text.lower(), "expected iris chunk in results"
+          print(f"Retrieval OK: {len(chunks)} chunks, sources:",
+                sorted({c['source'] for c in chunks}))
+          EOF

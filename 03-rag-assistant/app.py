@@ -9,6 +9,8 @@ Run:
     streamlit run app.py
 """
 
+from pathlib import Path
+
 import chromadb
 import streamlit as st
 from dotenv import load_dotenv
@@ -18,7 +20,7 @@ from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
-DB_DIR = "chroma_db"
+DB_DIR = str(Path(__file__).parent / "chroma_db")
 EMBED_MODEL = "all-MiniLM-L6-v2"
 MODELS = {
     "fast": "llama-3.1-8b-instant",
@@ -35,7 +37,14 @@ def get_embedder():
 
 @st.cache_resource
 def get_collection():
-    return chromadb.PersistentClient(path=DB_DIR).get_collection("docs")
+    client = chromadb.PersistentClient(path=DB_DIR)
+    try:
+        return client.get_collection("docs")
+    except Exception:
+        # No index yet (fresh clone / cloud deploy): build it from docs/
+        import ingest
+        ingest.main()
+        return client.get_collection("docs")
 
 
 def retrieve(question: str, k: int = 4) -> list[dict]:

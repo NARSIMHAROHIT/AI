@@ -9,6 +9,7 @@ Usage:
 """
 
 import argparse
+from pathlib import Path
 
 import chromadb
 from dotenv import load_dotenv
@@ -18,7 +19,7 @@ from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
-DB_DIR = "chroma_db"
+DB_DIR = str(Path(__file__).parent / "chroma_db")
 EMBED_MODEL = "all-MiniLM-L6-v2"
 TOP_K = 4  # how many chunks to retrieve
 
