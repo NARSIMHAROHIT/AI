@@ -5,3 +5,5 @@ chromadb
 sentence-transformers
 mcp
 streamlit
+pypdf 
+beautifulsoup4 

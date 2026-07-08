@@ -3,6 +3,8 @@
 Pipeline: read docs/ -> split into chunks -> embed each chunk with a
 Hugging Face model (runs locally, free) -> store vectors in ChromaDB.
 
+Supports .md, .txt, and .pdf files (text-based PDFs; scanned ones need OCR).
+
 Run this once, and again whenever you add or change documents:
     python ingest.py
 """
@@ -32,16 +34,30 @@ def chunk_text(text: str) -> list[str]:
     return chunks
 
 
+def read_file(path: Path) -> str:
+    """Extract text from a supported file type."""
+    if path.suffix.lower() == ".pdf":
+        from pypdf import PdfReader
+        return "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
 def main():
-    files = sorted(DOCS_DIR.glob("*.md")) + sorted(DOCS_DIR.glob("*.txt"))
+    files = sorted(
+        p for ext in ("*.md", "*.txt", "*.pdf") for p in DOCS_DIR.glob(ext)
+    )
     if not files:
-        print(f"No .md or .txt files found in {DOCS_DIR}/ — add some and rerun.")
+        print(f"No .md/.txt/.pdf files found in {DOCS_DIR}/ — add some and rerun.")
         return
 
     # Read + chunk
     all_chunks, metadatas = [], []
     for f in files:
-        chunks = chunk_text(f.read_text(encoding="utf-8"))
+        text = read_file(f)
+        if not text.strip():
+            print(f"{f.name}: no extractable text, skipped")
+            continue
+        chunks = chunk_text(text)
         all_chunks.extend(chunks)
         metadatas.extend({"source": f.name, "chunk": i} for i in range(len(chunks)))
         print(f"{f.name}: {len(chunks)} chunks")
